@@ -1,25 +1,6 @@
-# Update
-
-I created this fork to address GitHub's [change in API authentication](https://developer.github.com/changes/2020-02-10-deprecating-auth-through-query-param/). 
-
-I also fixed some bugs, updated some formatting, and set some defaults when running the tool. For JIRA issues with subtasks, the imported issues now include a list of the subtasks or parent task as appropriate.
-
-Finally, I disabled the issue ID replacement procedures. It wasn't working for me, and I didn't find this step necessary, anyway.
-
 # JIRA issues importer
 
 Python 3.x scripts for importing JIRA issues in XML format into an existing Github project without existing issues
-
-# Background
-
-Due to the java.net close-down in April 2017 there is a need to move projects from the java.net forge to Github.
-Part of the transition is the migration of java.net JIRA issues to the Github issue tracker.
-Googling for solutions for this issue migration I came across these "dirty" migration scripts from the following GISTs:
-
-* https://gist.github.com/Jach/1537770
-* https://gist.github.com/mkurz/20293e306b1c6fefff7c
-
-I took these as a starting point for this project. I restructured the code and added some more features.
 
 # Features
 
