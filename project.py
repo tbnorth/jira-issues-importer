@@ -101,8 +101,11 @@ class Project:
 
         # TODO: ensure item.assignee/reporter.get('username') to avoid "JENKINSUSER12345"
         # TODO: fixit in gh issues
-
+        # check if issue description is missing or empty and set a default
+        if not hasattr(item, 'description') or not item.description:
+            item.description = 'No Description'
         body = self._htmlentitydecode(item.description.text)
+
         # metadata: original author & link
 
         body = body + '\n\n---\n<details><summary><i>Originally reported by <a title="' + str(item.reporter) + '" href="' + self.jiraBaseUrl + '/secure/ViewProfile.jspa?name=' + item.reporter.get('username') + '">' + item.reporter.get('username') + '</a>, imported from: <a href="' + self.jiraBaseUrl + '/browse/' + item.key.text + '" target="_blank">' + item.title.text[item.title.text.index("]") + 2:len(item.title.text)] + '</a></i></summary>'
@@ -131,6 +134,10 @@ class Project:
 
         # retrieve jira components and labels as github labels
         labels = []
+
+        # set a default component if empty or missing
+        if not hasattr(item, 'component') or not item.component:
+            item.component = 'miscellaneous'
         for component in item.component:
             if os.getenv('JIRA_MIGRATION_INCLUDE_COMPONENT_IN_LABELS', 'true') == 'true':
                 labels.append('jira-component:' + component.text.lower())
