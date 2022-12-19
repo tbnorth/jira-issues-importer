@@ -2,8 +2,9 @@ import os
 import requests
 import time
 
-from utils import fetch_labels_mapping, fetch_allowed_labels, convert_label
+from utils import fetch_labels_mapping, fetch_allowed_labels, convert_label, get_github_search_url
 
+batch_size = int(os.getenv('JIRA_MIGRATION_BATCH_SIZE', 20))
 
 class Importer:
     _GITHUB_ISSUE_PREFIX = "INFRA-"
@@ -133,18 +134,23 @@ class Importer:
         """
         print('Importing issues...')
 
+        with open('jira-keys-to-github-id.txt', 'a') as f:
+            f.write('### ' + time.asctime())
+
         count = 0
+
+        self.tickets_pending_url = []
 
         for issue in self.project.get_issues():
             if start_from_count > count:
                 count += 1
                 continue
 
-            print("Index = ", count)
+            print("\nIndex = ", count)
 
             if 'milestone_name' in issue:
-                issue['milestone'] = self.project.get_milestones()[
-                    issue['milestone_name']]
+                if issue['milestone_name']:
+                    issue['milestone'] = self.project.get_milestones()[issue['milestone_name']]
                 del issue['milestone_name']
 
             self.convert_relationships_to_comments(issue)
@@ -156,8 +162,34 @@ class Importer:
                 comments.append(
                     dict((k, self._replace_jira_with_github_id(v)) for k, v in comment.items()))
 
+            # remove dup
+            issue['labels'] = list(set(issue['labels']))
+
             self.import_issue_with_comments(issue, comments)
             count += 1
+
+            if len(self.tickets_pending_url) % batch_size == 0:
+                self.batch_wait()
+
+        self.batch_wait()
+
+    def batch_wait(self):
+        while self.tickets_pending_url:
+            issue, jira_key, status_url, ex = self.tickets_pending_url.pop(0)
+            try:
+                if ex:
+                    raise ex
+                gh_issue_url = self.wait_for_issue_creation(status_url, 0).json()['issue_url']
+                gh_issue_id = int(gh_issue_url.split('/')[-1])
+                issue['githubid'] = gh_issue_id
+                issue['key'] = jira_key
+            except RuntimeError as ex:
+                print(ex)
+                gh_issue_id = str(ex).replace("\n", " ")
+
+            jira_gh = f"{jira_key}:{gh_issue_id}\n"
+            with open('jira-keys-to-github-id.txt', 'a') as f:
+                f.write(jira_gh)
 
     def import_issue_with_comments(self, issue, comments):
         """
@@ -170,21 +202,19 @@ class Importer:
         Then GitHub is pulled in a loop until the issue import is completed.
         Finally the issue github is noted.    
         """
-        print('Issue ', issue['key'])
-        print('Labels', issue['labels'])
+        print('Issue   ', issue['key'])
+        print('Labels  ', issue['labels'])
+        print('Assignee', issue['assignee'])
         jira_key = issue['key']
         del issue['key']
+        if not issue['assignee']:
+            del issue['assignee']
 
-        response = self.upload_github_issue(issue, comments)
-        status_url = response.json()['url']
-        gh_issue_url = self.wait_for_issue_creation(status_url).json()['issue_url']
-        gh_issue_id = int(gh_issue_url.split('/')[-1])
-        issue['githubid'] = gh_issue_id
-        issue['key'] = jira_key
-
-        jira_gh = f"{jira_key}:{gh_issue_id}\n"
-        with open('jira-keys-to-github-id.txt', 'a') as f:
-            f.write(jira_gh)
+        try:
+            response = self.upload_github_issue(issue, comments)
+            self.tickets_pending_url.append((issue, jira_key, response.json()['url'], None))
+        except RuntimeError as ex:
+            self.tickets_pending_url.append((issue, jira_key, None, ex))
 
     def upload_github_issue(self, issue, comments):
         """
@@ -207,14 +237,14 @@ class Importer:
                 .format(issue['title'], response.status_code, response.json())
             )
 
-    def wait_for_issue_creation(self, status_url):
+    def wait_for_issue_creation(self, status_url, wait = 3):
         """
         Check the status of a GitHub issue import.
         If the status is 'pending', it sleeps, then rechecks until the status is
         either 'imported' or 'failed'.
         """
         while True:  # keep checking until status is something other than 'pending'
-            time.sleep(3)
+            time.sleep(wait)
             response = requests.get(status_url, headers=self.headers, 
                 timeout=Importer._DEFAULT_TIME_OUT)
             if response.status_code == 404:
@@ -228,6 +258,8 @@ class Importer:
             status = response.json()['status']
             if status != 'pending':
                 break
+            if not wait:
+                time.sleep(1)
 
         if status == 'imported':
             print("Imported Issue:", response.json()['issue_url'].replace('api.github.com/repos/', 'github.com/'))
@@ -244,49 +276,27 @@ class Importer:
         return response
 
     def convert_relationships_to_comments(self, issue):
-        duplicates = issue['duplicates']
-        is_duplicated_by = issue['is-duplicated-by']
-        relates_to = issue['is-related-to']
-        depends_on = issue['depends-on']
-        blocks = issue['blocks']
-        try:
-            epic_link = issue['epic-link']
-        except (AttributeError, KeyError):
-            epic_link = None
+        mapping = (
+            ('relates-to', 'relates to'),
+            ('duplicates', 'duplicates'),
+            ('is-duplicated-by', 'is duplicated by'),
+            ('depends-on', 'depends-on'),
+            ('is-depended-on-by', 'is depended on by'),
+            ('blocks', 'blocks'),
+            ('is-blocked-by', 'is blocked by'),
+            ('clones', 'clones'),
+            ('is-cloned-by', 'is cloned by'),
+        )
 
-        for duplicate_item in duplicates:
-            issue['comments'].append(
-                {"body": f'<i>[Duplicates: <a href="https://github.com/{self.options.account}/{self.options.repo}/issues?q=in%3Atitle%20' + self._replace_jira_with_github_id(duplicate_item) + '">' + self._replace_jira_with_github_id(duplicate_item) + '</a>]</i>'})
-
-        for is_duplicated_by_item in is_duplicated_by:
-            issue['comments'].append(
-                {"body": f'<i>[Originally duplicated by: <a href="https://github.com/{self.options.account}/{self.options.repo}/issues?q=in%3Atitle%20' + self._replace_jira_with_github_id(is_duplicated_by_item) + '">' + self._replace_jira_with_github_id(is_duplicated_by_item) + '</a>]</i>'})
-
-        for relates_to_item in relates_to:
-            issue['comments'].append(
-                {"body": f'<i>[Originally related to: <a href="https://github.com/{self.options.account}/{self.options.repo}/issues?q=in%3Atitle%20' + self._replace_jira_with_github_id(relates_to_item) + '">' + self._replace_jira_with_github_id(relates_to_item) + '</a>]</i>'})
-
-        for depends_on_item in depends_on:
-            issue['comments'].append(
-                {"body": f'<i>[Originally depends on: <a href="https://github.com/{self.options.account}/{self.options.repo}/issues?q=in%3Atitle%20' + self._replace_jira_with_github_id(depends_on_item) + '">' + self._replace_jira_with_github_id(depends_on_item) + '</a>]</i>'})
-
-        for blocks_item in blocks:
-            issue['comments'].append(
-                {"body": f'<i>[Originally blocks: <a href="https://github.com/{self.options.account}/{self.options.repo}/issues?q=in%3Atitle%20' + self._replace_jira_with_github_id(blocks_item) + '">' + self._replace_jira_with_github_id(blocks_item) + '</a>]</i>'})
-
-        if epic_link:
-            issue['comments'].append(
-                {"body": f'<i>[Epic: <a href="https://github.com/{self.options.account}/{self.options.repo}/issues?q=in%3Atitle%20' + self._replace_jira_with_github_id(epic_link) + '%20label%3Aepic">' + self._replace_jira_with_github_id(epic_link) + '</a>]</i>'})
-
-        del issue['duplicates']
-        del issue['is-duplicated-by']
-        del issue['is-related-to']
-        del issue['depends-on']
-        del issue['blocks']
-        try:
-            del issue['epic-link']
-        except KeyError:
-            pass
+        for key, name in mapping:
+            items = []
+            for item in issue.pop(key, []):
+                item = self._replace_jira_with_github_id(item)
+                url = get_github_search_url(item, 'title')
+                items.append(f'<a href="{url}">{item}</a>')
+            if items:
+                links = ' '.join(items)
+                issue['comments'].append({"body": f'<i>[Originally {name}: {links}]</i>'})
 
     def _replace_jira_with_github_id(self, text):
         result = text

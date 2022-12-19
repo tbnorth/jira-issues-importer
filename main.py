@@ -24,8 +24,19 @@ opts = Options(accesstoken=pat, account=ac, repo=repo)
 
 project = Project(jira_proj, jira_done_id, jira_base_url)
 
+tickets_to_import = os.getenv('JIRA_TICKETS', '').replace(',', ' ').split()
+if tickets_to_import:
+    print('JIRA_TICKETS:', tickets_to_import)
+tickets_to_skip = os.getenv('JIRA_TICKETS_SKIP', '').replace(',', ' ').split()
+if tickets_to_skip:
+    print('JIRA_TICKETS_SKIP:', tickets_to_skip)
+
 for f in all_xml_files:
     for item in f.channel.item:
+        key = item.key.text
+        if (tickets_to_import and key not in tickets_to_import) or (tickets_to_skip and key in tickets_to_skip):
+            print('Skipping %s...' % key)
+            continue
         project.add_item(item)
 
 project.prettify()
