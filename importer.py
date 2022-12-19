@@ -286,6 +286,8 @@ class Importer:
             ('is-blocked-by', 'is blocked by'),
             ('clones', 'clones'),
             ('is-cloned-by', 'is cloned by'),
+            ('causes', 'causes'),
+            ('is-caused-by', 'is caused by'),
         )
 
         for key, name in mapping:
