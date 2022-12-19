@@ -135,7 +135,7 @@ class Importer:
         print('Importing issues...')
 
         with open('jira-keys-to-github-id.txt', 'a') as f:
-            f.write('### ' + time.asctime())
+            f.write("### %s\n" % time.asctime())
 
         count = 0
 
