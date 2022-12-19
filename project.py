@@ -225,7 +225,10 @@ class Project:
     def _get_epic(self, item):
         try:
             customfield = item.customfields.find('customfield[@key="com.pyxis.greenhopper.jira:gh-epic-link"]')
-            return re.sub(r'[^\w-]+', ' ', customfield.customfieldvalues.customfieldvalue.text).strip()
+            epic_name = re.sub(r'[^\w-]+', ' ', customfield.customfieldvalues.customfieldvalue.text).strip()
+            if len(epic_name) > 50:
+                epic_name = epic_name[:epic_name.index(' - ')]
+            return epic_name
         except AttributeError:
             return None
 
