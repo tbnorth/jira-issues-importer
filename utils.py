@@ -15,7 +15,7 @@ def fetch_labels_mapping():
     if not _exists(fn):
         return {}
     with open(fn) as file:
-        entry = [line.split("=") for line in file.readlines() if not line.startswith('#')]
+        entry = [line.split("=") for line in file.readlines() if line and not line.startswith('#')]
     return {key.strip(): value.strip() for key, value in entry}
 
 
@@ -24,7 +24,7 @@ def fetch_allowed_labels():
     if not _exists(fn):
         return []
     with open(fn) as file:
-        return [line.strip('\n') for line in file.readlines() if not line.startswith('#')]
+        return [line.strip('\n') for line in file.readlines() if line and not line.startswith('#')]
 
 
 def fetch_people_mapping():
@@ -32,7 +32,7 @@ def fetch_people_mapping():
     if not _exists(fn):
         return {}
     with open(fn) as file:
-        entry = [line.split("=") for line in file.readlines() if not line.startswith('#')]
+        entry = [line.split("=") for line in file.readlines() if line and not line.startswith('#')]
     return {value.strip(): key.strip() for key, value in entry} # {bitbucket: github}
 
 
@@ -41,7 +41,7 @@ def fetch_jira_user_mapping():
     if not _exists(fn):
         return {}
     with open(fn) as file:
-        entry = [line.split("=") for line in file.readlines() if not line.startswith('#')]
+        entry = [line.split("=") for line in file.readlines() if line and not line.startswith('#')]
     return {key.strip(): value.strip() for key, value in entry} # {uuid: name}
 
 
