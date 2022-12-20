@@ -226,15 +226,18 @@ class Project:
         try:
             customfield = item.customfields.find('customfield[@key="com.pyxis.greenhopper.jira:gh-epic-link"]')
             epic_name = re.sub(r'[^\w-]+', ' ', customfield.customfieldvalues.customfieldvalue.text).strip()
-            if len(epic_name) > 50:
-                main_name = epic_name.find(' - ')
-                if main_name <= 0:
-                    epic_name = epic_name[:main_name]
-                else:
-                    words = epic_name.split(' ')
-                    while len(epic_name) > 50:
-                        words.pop()
-                        epic_name = ' '.join(words)
+            if len(epic_name) < 50:
+                return epic_name
+
+            main_name = epic_name.find(' - ')
+            if main_name > 0:
+                epic_name = epic_name[:main_name]
+                return epic_name
+
+            words = epic_name.split(' ')
+            while len(epic_name) > 40:
+                words.pop()
+                epic_name = ' '.join(words)
             return epic_name
         except AttributeError:
             return None
