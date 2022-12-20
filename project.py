@@ -227,8 +227,8 @@ class Project:
             customfield = item.customfields.find('customfield[@key="com.pyxis.greenhopper.jira:gh-epic-link"]')
             epic_name = re.sub(r'[^\w-]+', ' ', customfield.customfieldvalues.customfieldvalue.text).strip()
             if len(epic_name) > 50:
-                main_name = epic_name.index(' - ')
-                if main_name:
+                main_name = epic_name.find(' - ')
+                if main_name <= 0:
                     epic_name = epic_name[:main_name]
                 else:
                     words = epic_name.split(' ')
