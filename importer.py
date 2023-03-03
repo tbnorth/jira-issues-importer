@@ -97,7 +97,7 @@ class Importer:
 
     def import_labels(self, colour_selector):
         """
-        Imports the gathered project components and labels as labels into GitHub 
+        Imports the gathered project components and labels as labels into GitHub
         """
         label_url = self.github_url + '/labels'
         print('Importing labels...', label_url)
@@ -129,8 +129,8 @@ class Importer:
         Starts the issue import into GitHub:
         First the milestone id is captured for the issue.
         Then JIRA issue relationships are converted into comments.
-        After that, the comments are taken out of the issue and 
-        references to JIRA issues in comments are replaced with a placeholder    
+        After that, the comments are taken out of the issue and
+        references to JIRA issues in comments are replaced with a placeholder
         """
         print('Importing issues...')
 
@@ -152,6 +152,14 @@ class Importer:
                 if issue['milestone_name']:
                     issue['milestone'] = self.project.get_milestones()[issue['milestone_name']]
                 del issue['milestone_name']
+
+            # turn epic into label
+            epic_link = issue.get('epic')
+            if epic_link:
+                epic_link = self.project.epic_mapping.get(epic_link, epic_link)
+                self.project._project['Labels'][epic_link] += 1
+                issue['labels'].append(epic_link)
+            issue.pop('epic', None)
 
             self.convert_relationships_to_comments(issue)
 
@@ -200,7 +208,7 @@ class Importer:
         This is a two-step process:
         First the issue with the comments is pushed to GitHub asynchronously.
         Then GitHub is pulled in a loop until the issue import is completed.
-        Finally the issue github is noted.    
+        Finally the issue github is noted.
         """
         print('Issue   ', issue['key'])
         print('Labels  ', issue['labels'])
@@ -222,7 +230,7 @@ class Importer:
         """
         issue_url = self.github_url + '/import/issues'
         issue_data = {'issue': issue, 'comments': comments}
-        response = requests.post(issue_url, json=issue_data, headers=self.headers, 
+        response = requests.post(issue_url, json=issue_data, headers=self.headers,
             timeout=Importer._DEFAULT_TIME_OUT)
         if response.status_code == 202:
             return response
@@ -245,7 +253,7 @@ class Importer:
         """
         while True:  # keep checking until status is something other than 'pending'
             time.sleep(wait)
-            response = requests.get(status_url, headers=self.headers, 
+            response = requests.get(status_url, headers=self.headers,
                 timeout=Importer._DEFAULT_TIME_OUT)
             if response.status_code == 404:
                 continue

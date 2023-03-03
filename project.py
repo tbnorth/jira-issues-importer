@@ -34,6 +34,7 @@ class Project:
         self.approved_labels = fetch_allowed_labels()
         self.people_mapping = fetch_people_mapping()
         self.jira_user_mapping = fetch_jira_user_mapping()
+        self.epic_mapping = {}
 
     def get_milestones(self):
         return self._project['Milestones']
@@ -184,6 +185,16 @@ class Project:
 
         labels.append('jira')
 
+        # If this is an epic, add the epic label to the mapping
+        epic_label = self._get_epic_label(item)
+        if epic_label:
+            self.epic_mapping[item.key.text.strip()] = epic_label
+            # And add the epic label to the issue
+            labels.append(epic_label)
+
+        # See if this issue is in an Epic
+        epic_link = (self._get_epic(item) or "").strip()
+
         unique_labels = list(set(labels))
 
         self._project['Issues'].append({'title': item.title.text,
@@ -197,6 +208,7 @@ class Project:
                                         'closed': closed,
                                         'labels': unique_labels,
                                         'comments': [],
+                                        'epic': epic_link,
                                         })
         if not self._project['Issues'][-1]['closed_at']:
             del self._project['Issues'][-1]['closed_at']
@@ -223,6 +235,7 @@ class Project:
         return dt.isoformat()
 
     def _get_epic(self, item):
+        """For item, if item has an epic link, return the epic issue key."""
         try:
             customfield = item.customfields.find('customfield[@key="com.pyxis.greenhopper.jira:gh-epic-link"]')
             epic_name = re.sub(r'[^\w-]+', ' ', customfield.customfieldvalues.customfieldvalue.text).strip()
@@ -251,14 +264,18 @@ class Project:
         except AttributeError:
             pass
 
+    def _get_epic_label(self, item):
+        """For item, if item is an epic, return the epic name."""
+        try:
+            customfield = item.customfields.find('customfield[@key="com.pyxis.greenhopper.jira:gh-epic-label"]')
+            epic_name = re.sub(r'[^\w-]+', ' ', customfield.customfieldvalues.customfieldvalue.text).strip()
+            if len(epic_name) < 50:
+                return epic_name
+        except AttributeError:
+            return
+
     def _add_labels(self, item):
         issue = self._project['Issues'][-1]
-
-        # turn epic into label
-        epic_name = self._get_epic(item)
-        if epic_name:
-            self._project['Labels'][epic_name] += 1
-            issue['labels'].append(epic_name)
 
         try:
             self._project['Components'][item.component.text] += 1
