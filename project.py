@@ -124,12 +124,12 @@ class Project:
         assignee = None
         status = ''
 
-        body = body + '\n\n---\n<details><summary><i>Originally reported by <a title="' + str(item.reporter) + '" href="' + self.jiraBaseUrl + '/secure/ViewProfile.jspa?accountid=' + item.reporter.get('accountid') + '">' + str(item.reporter) + '</a>, imported from: <a href="' + self.jiraBaseUrl + '/browse/' + item.key.text + '" target="_blank">' + item.title.text[item.title.text.index("]") + 2:len(item.title.text)] + '</a></i></summary>'
+        body = body + '\n\n---\n<details><summary><i>Originally reported by <a title="' + str(item.reporter) + '" href="' + self.jiraBaseUrl + '/secure/ViewProfile.jspa?accountid=' + item.reporter.get('accountid', '?') + '">' + str(item.reporter) + '</a>, imported from: <a href="' + self.jiraBaseUrl + '/browse/' + item.key.text + '" target="_blank">' + item.title.text[item.title.text.index("]") + 2:len(item.title.text)] + '</a></i></summary>'
         # metadata: assignee
         body = body + '\n<i><ul>'
         if item.assignee != 'Unassigned':
             assignee = str(item.assignee)
-            body = body + '\n<li><b>assignee</b>: <a title="' + str(item.assignee) + '" href="' + self.jiraBaseUrl + '/secure/ViewProfile.jspa?accountid=' + item.assignee.get('accountid') + '">' + str(item.assignee) + '</a>'
+            body = body + '\n<li><b>assignee</b>: <a title="' + str(item.assignee) + '" href="' + self.jiraBaseUrl + '/secure/ViewProfile.jspa?accountid=' + item.assignee.get('accountid', '?') + '">' + str(item.assignee) + '</a>'
         try:
             body = body + '\n<li><b>status</b>: ' + item.status
             status = item.status.text.lower()
